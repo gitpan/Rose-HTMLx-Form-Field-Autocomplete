@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Carp;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 use base qw( Rose::HTML::Form::Field::Text );
 
@@ -16,7 +16,39 @@ sub url
     my $u    = $self->autocomplete or croak "no autocomplete URL set";
     my $n    = $self->name || $self->local_name;
     my $l    = $self->limit || 30;
-    return join('', $u, '?', 'c=', $n, '&', 'l=', $l);
+    return [$u, {c => $n, l => $l}];
+}
+
+# borrowed from TT::Plugin::URL
+sub url_as_string
+{
+    my $self = shift;
+    my $url  = $self->url;
+    my $args = $url->[1];
+    my $esc  = join('&amp;',
+                   map { _url_args($_, $args->{$_}) }
+                     grep { defined $args->{$_} && length $args->{$_} }
+                     sort keys %$args);
+
+    return $url->[0] . '?' . $esc;
+}
+
+# borrowed from TT::Plugin::URL
+sub _url_args
+{
+    my ($key, $val) = @_;
+    $key = _escape($key);
+
+    return map { "$key=" . _escape($_); } ref $val eq 'ARRAY' ? @$val : $val;
+}
+
+# borrowed from TT::Plugin::URL, which borrowed froM CGI.pm
+sub _escape
+{
+    my $toencode = shift;
+    return undef unless defined($toencode);
+    $toencode =~ s/([^a-zA-Z0-9_.-])/uc sprintf("%%%02x",ord($1))/eg;
+    return $toencode;
 }
 
 1;
@@ -66,8 +98,18 @@ Expects an integer, which will be used in the construction of url().
 
 =head2 url
 
-Returns the URL for use in your template. The value is in the syntax
+Returns the URL for use in your template. The return value is an array
+ref, with the first value being the base URI and the second value being
+a hashref of param key/value pairs. The hashref keys are in the syntax
 that Catalyst::Controller::Rose::Autocomplete expects.
+
+See the Catalyst::Controller::Rose example application for examples
+of using the url() method with Template Toolkit.
+
+=head2 url_as_string
+
+Like url() but the return value is a scalar string, not an array ref.
+The value is the URI-escaped value of url().
 
 =head1 AUTHOR
 
